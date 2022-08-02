@@ -192,6 +192,7 @@ const Home = () => {
             src={srcFileDefault}
             crop={crop}
             style={{
+              height: "800px",
               objectFit: "cover",
               margin: "0 auto",
             }}
@@ -205,6 +206,7 @@ const Home = () => {
             <img
               src={srcFileDefault}
               style={{
+                height: "800px",
                 objectFit: "cover",
                 margin: "0 auto",
               }}
