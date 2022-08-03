@@ -5,6 +5,8 @@ import ReactCrop from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import { Typography, Stack, Button } from "@mui/material";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 const Home = () => {
   const [isDrawBox, setIsDrawBox] = useState(false);
@@ -16,9 +18,12 @@ const Home = () => {
   const [image, setImg] = useState(null);
   const [crop, setCrop] = useState({
     unit: "%",
-    aspect: 1 / 1,
+    aspect: 8 / 16,
     width: 100,
   });
+  const [coordinates, setCoordinates] = useState([]);
+  const [isChooseSuggest, setIsChooseSuggest] = useState(false);
+  let navigate = useNavigate();
 
   const rootElement = document.querySelectorAll(".item-suggest");
   if (rootElement) {
@@ -26,9 +31,13 @@ const Home = () => {
       rootElement[index].addEventListener("click", function (el) {
         const i = rootElement[index].getBoundingClientRect();
         rootElement[index].style.border = `3px solid green`;
-        console.log("====================================");
-        console.log(i);
-        console.log("====================================");
+
+        // lấy ra các tọa độ như X1: i.x
+        // lấy ra các tọa độ như Y1 : i.width
+        // lấy ra các tọa độ như X2 : i.y
+        // lấy ra các tọa độ như Y2 : i.height
+        setCoordinates([i.x, i.width, i.y, i.height]);
+        setIsChooseSuggest(true);
       });
     }
   }
@@ -65,9 +74,15 @@ const Home = () => {
     file.target.value = null;
   };
 
-  const handleAddSuggestBox = () => {
+  const handleAddSuggestBox = async () => {
     setIsSuggestBox(!isSuggestBox);
+    setIsDrawBox(false);
 
+    //const res = await axios.get("http://localhost:5000/suggest-box");
+    //if (res.status === 200) {
+    // lấy dữ liệu từ res xuống
+    // thực hiện for để lấy ra từng item > sau đó cho vô function createItem để có được suggest box
+    //}
     createItem(20, 30, 100, 300);
     createItem(10, 900, 50, 200);
     createItem(60, 300, 20, 70);
@@ -81,24 +96,45 @@ const Home = () => {
   };
 
   const searchItem = async () => {
-    URL.revokeObjectURL(srcFileDefault);
-    const croppedImage = await getCroppedImage(
-      image,
-      crop,
-      "croppedImage.jpeg" // destination filename
-    );
-    // file , link
-    setSrcFileHasCrop(croppedImage);
-    setLinkFile(URL.createObjectURL(croppedImage));
+    if (srcFileDefault) {
+      if (isChooseSuggest) {
+        // drawBox(croppedImage); goi lenh api
+        navigate("/result", { replace: true });
+      } else {
+        URL.revokeObjectURL(srcFileDefault);
+        const croppedImage = await getCroppedImage(
+          image,
+          crop,
+          "croppedImage.jpeg" // destination filename
+        );
+        navigate("/result", { replace: true });
+        // drawBox(croppedImage); goi lenh api
+      }
+    }
+    navigate("/result", { replace: true });
   };
 
-  function getCroppedImage(sourceImage, cropConfig, fileName) {
+  const drawBox = async (coordinates) => {
+    try {
+      const draw = await axios.post("http://localhost:5000/add-coordinates", {
+        coordinates,
+      });
+      if (draw.status === 200) {
+        // set laij link anh sau khi draw
+        // setSrcFileDefault()
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  async function getCroppedImage(sourceImage, cropConfig, fileName) {
     // creating the cropped image from the source image
     const canvas = document.createElement("canvas");
-    const scaleX = sourceImage.naturalWidth / sourceImage.width;
-    const scaleY = sourceImage.naturalHeight / sourceImage.height;
-    canvas.width = cropConfig.width;
-    canvas.height = cropConfig.height;
+    const scaleX = sourceImage?.naturalWidth / sourceImage?.width;
+    const scaleY = sourceImage?.naturalHeight / sourceImage?.height;
+    canvas.width = cropConfig?.width;
+    canvas.height = cropConfig?.height;
     const ctx = canvas.getContext("2d");
     // New lines to be added
     const pixelRatio = window.devicePixelRatio;
@@ -107,41 +143,19 @@ const Home = () => {
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     ctx.imageSmoothingQuality = "high";
 
-    console.log("====================================");
-    console.log("x", cropConfig.x * scaleX);
-    console.log("Y", cropConfig.y * scaleY);
-    console.log("width", cropConfig.width * scaleX);
-    console.log("height", cropConfig.height * scaleY);
-    console.log("====================================");
-
-    // return canvas;
-
-    // ctx.drawImage(
-    //   sourceImage,
-    //   cropConfig.x * scaleX,
-    //   cropConfig.y * scaleY,
-    //   cropConfig.width * scaleX,
-    //   cropConfig.height * scaleY,
-    //   0,
-    //   0,
-    //   cropConfig.width,
-    //   cropConfig.height
-    // );
-
-    // return new Promise((resolve, reject) => {
-    //   canvas.toBlob((blob) => {
-    //     if (!blob) {
-    //       reject(new Error("Canvas is empty"));
-    //       return;
-    //     }
-
-    //     let file = new File([blob], fileName, { type: "image/jpeg" });
-    //     resolve(file);
-    //   }, "image/jpeg");
-    // });
+    const arr = [
+      cropConfig.x * scaleX,
+      cropConfig.width * scaleX,
+      cropConfig.y * scaleY,
+      cropConfig.height * scaleY,
+    ];
+    return arr;
   }
 
-  console.log(srcFileHasCrop);
+  const handleDraw = () => {
+    setIsDrawBox(!isDrawBox);
+    setIsSuggestBox(false);
+  };
 
   return (
     <div className="header">
@@ -171,48 +185,57 @@ const Home = () => {
             Upload Image
           </Button>
         </label>
+        {srcFileDefault && (
+          <Button
+            variant="contained"
+            sx={{ backgroundColor: isSuggestBox ? "green" : "" }}
+            onClick={
+              isSuggestBox ? handleRemoveSuggestBox : handleAddSuggestBox
+            }
+          >
+            {" "}
+            View suggested Box
+          </Button>
+        )}
+
         <Button
+          sx={{ backgroundColor: isDrawBox ? "green" : "" }}
           variant="contained"
-          sx={{ backgroundColor: isSuggestBox ? "" : "green" }}
-          onClick={isSuggestBox ? handleAddSuggestBox : handleRemoveSuggestBox}
+          onClick={handleDraw}
         >
-          {" "}
-          View suggested Box
-        </Button>
-        <Button variant="contained" onClick={() => setIsDrawBox(!isDrawBox)}>
           DrawBox
         </Button>
         <Button variant="contained" onClick={searchItem}>
           Search
         </Button>
       </Stack>
-      <div className="view-main">
-        {isDrawBox && (
-          <ReactCrop
-            src={srcFileDefault}
-            crop={crop}
-            style={{
-              height: "800px",
-              objectFit: "cover",
-              margin: "0 auto",
-            }}
-            onImageLoaded={(newImg) => setImg(newImg)}
-            onChange={(newCrop) => setCrop(newCrop)}
-          />
-        )}
-
-        <div id="suggest-box">
-          {!isDrawBox && (
-            <img
+      <div className="main">
+        <div className="view-main">
+          {isDrawBox && (
+            <ReactCrop
               src={srcFileDefault}
+              crop={crop}
               style={{
-                height: "800px",
-                objectFit: "cover",
+                width: "100%",
                 margin: "0 auto",
               }}
-              alt=""
+              onImageLoaded={(newImg) => setImg(newImg)}
+              onChange={(newCrop) => setCrop(newCrop)}
             />
           )}
+
+          <div id="suggest-box">
+            {!isDrawBox && (
+              <img
+                src={srcFileDefault}
+                style={{
+                  width: "100%",
+                  margin: "0 auto",
+                }}
+                alt=""
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
